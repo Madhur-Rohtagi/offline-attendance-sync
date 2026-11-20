@@ -1,0 +1,217 @@
+
+==============================================================================
+SCENARIO 1: Non-conflicting updates
+==============================================================================
+
+[Initial state]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     (empty)
+
+  -- Client B DB --
+     (empty)
+
+Updates (made offline):
+  Client A: student 101 Present @ 2026-11-20T09:00:00.000000Z
+  Client B: student 102 Absent  @ 2026-11-20T09:01:00.000000Z
+
+[Local states before sync]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     student 101  2026-11-20  Present  by A  @ 2026-11-20T09:00:00.000000Z  PENDING
+
+  -- Client B DB --
+     student 102  2026-11-20  Absent   by B  @ 2026-11-20T09:01:00.000000Z  PENDING
+
+>>> Client A synchronizes (1 pending)
+[server] A: student 101 2026-11-20 Present @ 2026-11-20T09:00:00.000000Z -> ACCEPTED (winner: Present by A)
+  ACCEPTED   student 101 on 2026-11-20: Present saved on server
+Synchronization completed: sent 1 update(s), received 1 record(s)
+
+>>> Client B synchronizes (1 pending)
+[server] B: student 102 2026-11-20 Absent @ 2026-11-20T09:01:00.000000Z -> ACCEPTED (winner: Absent by B)
+  ACCEPTED   student 102 on 2026-11-20: Absent saved on server
+Synchronization completed: sent 1 update(s), received 2 record(s)
+
+>>> Client A synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 2 record(s)
+
+[Final state]
+
+  -- Server DB --
+     student 101  2026-11-20  Present  by A  @ 2026-11-20T09:00:00.000000Z  synced
+     student 102  2026-11-20  Absent   by B  @ 2026-11-20T09:01:00.000000Z  synced
+
+  -- Client A DB --
+     student 101  2026-11-20  Present  by A  @ 2026-11-20T09:00:00.000000Z  synced
+     student 102  2026-11-20  Absent   by B  @ 2026-11-20T09:01:00.000000Z  synced
+
+  -- Client B DB --
+     student 101  2026-11-20  Present  by A  @ 2026-11-20T09:00:00.000000Z  synced
+     student 102  2026-11-20  Absent   by B  @ 2026-11-20T09:01:00.000000Z  synced
+
+Verification:
+  PASS: server has 101 Present
+  PASS: server has 102 Absent
+  PASS: exactly 2 rows on server
+  PASS: server, A and B are identical
+
+==============================================================================
+SCENARIO 2: Conflicting updates (same student, same day)
+==============================================================================
+
+[Initial state]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     (empty)
+
+  -- Client B DB --
+     (empty)
+
+Updates (made offline):
+  Client A: student 101 Present @ 2026-11-20T10:00:00.000000Z
+  Client B: student 101 Absent  @ 2026-11-20T10:05:00.000000Z
+
+[Local states before sync]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     student 101  2026-11-20  Present  by A  @ 2026-11-20T10:00:00.000000Z  PENDING
+
+  -- Client B DB --
+     student 101  2026-11-20  Absent   by B  @ 2026-11-20T10:05:00.000000Z  PENDING
+
+>>> Client A synchronizes (1 pending)
+[server] A: student 101 2026-11-20 Present @ 2026-11-20T10:00:00.000000Z -> ACCEPTED (winner: Present by A)
+  ACCEPTED   student 101 on 2026-11-20: Present saved on server
+Synchronization completed: sent 1 update(s), received 1 record(s)
+
+>>> Client B synchronizes (1 pending)
+[server] B: student 101 2026-11-20 Absent @ 2026-11-20T10:05:00.000000Z -> ACCEPTED (winner: Absent by B)
+  CONFLICT   student 101 on 2026-11-20: your Absent @ 2026-11-20T10:05:00.000000Z is newer -> WINS
+Synchronization completed: sent 1 update(s), received 1 record(s)
+
+>>> Client A synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 1 record(s)
+
+[Final state]
+
+  -- Server DB --
+     student 101  2026-11-20  Absent   by B  @ 2026-11-20T10:05:00.000000Z  synced
+
+  -- Client A DB --
+     student 101  2026-11-20  Absent   by B  @ 2026-11-20T10:05:00.000000Z  synced
+
+  -- Client B DB --
+     student 101  2026-11-20  Absent   by B  @ 2026-11-20T10:05:00.000000Z  synced
+
+Verification:
+  PASS: server has 101 Absent (10:05 wins)
+  PASS: winner is B's update
+  PASS: exactly 1 row on server
+  PASS: server, A and B are identical
+
+==============================================================================
+SCENARIO 3: Out-of-order and repeated synchronization
+==============================================================================
+
+[Initial state]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     (empty)
+
+  -- Client B DB --
+     (empty)
+
+Updates (made offline):
+  Client A: student 103 Absent  @ 2026-11-20T11:00:00.000000Z  (older)
+  Client B: student 103 Present @ 2026-11-20T11:30:00.000000Z  (newer)
+
+[Local states before sync]
+
+  -- Server DB --
+     (empty)
+
+  -- Client A DB --
+     student 103  2026-11-20  Absent   by A  @ 2026-11-20T11:00:00.000000Z  PENDING
+
+  -- Client B DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  PENDING
+
+>>> Client B synchronizes (1 pending)
+[server] B: student 103 2026-11-20 Present @ 2026-11-20T11:30:00.000000Z -> ACCEPTED (winner: Present by B)
+  ACCEPTED   student 103 on 2026-11-20: Present saved on server
+Synchronization completed: sent 1 update(s), received 1 record(s)
+
+>>> Client A synchronizes (1 pending)
+[server] A: student 103 2026-11-20 Absent @ 2026-11-20T11:00:00.000000Z -> REJECTED (older) (winner: Present by B)
+  CONFLICT   student 103 on 2026-11-20: your Absent @ 2026-11-20T11:00:00.000000Z LOST to Present by B @ 2026-11-20T11:30:00.000000Z
+Synchronization completed: sent 1 update(s), received 1 record(s)
+
+[After out-of-order sync]
+
+  -- Server DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+  -- Client A DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+  -- Client B DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+>>> Repeated synchronization (both clients sync twice more)
+
+>>> Client A synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 1 record(s)
+
+>>> Client B synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 1 record(s)
+
+>>> Client A synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 1 record(s)
+
+>>> Client B synchronizes (0 pending)
+Synchronization completed: sent 0 update(s), received 1 record(s)
+
+>>> Duplicate delivery: both original updates are re-sent, as if replies were lost
+[server] B: student 103 2026-11-20 Present @ 2026-11-20T11:30:00.000000Z -> DUPLICATE (winner: Present by B)
+  re-sent B's update -> outcome 'duplicate' (winner still Present by B)
+[server] A: student 103 2026-11-20 Absent @ 2026-11-20T11:00:00.000000Z -> REJECTED (older) (winner: Present by B)
+  re-sent A's update -> outcome 'existing' (winner still Present by B)
+
+[Final state]
+
+  -- Server DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+  -- Client A DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+  -- Client B DB --
+     student 103  2026-11-20  Present  by B  @ 2026-11-20T11:30:00.000000Z  synced
+
+Verification:
+  PASS: older update did not overwrite: 103 is Present
+  PASS: no duplicate rows: exactly 1 row on server
+  PASS: re-sent winning update detected as duplicate
+  PASS: re-sent old update was not applied
+  PASS: server, A and B are identical
+
+==============================================================================
+Scenario 1: PASS
+Scenario 2: PASS
+Scenario 3: PASS
